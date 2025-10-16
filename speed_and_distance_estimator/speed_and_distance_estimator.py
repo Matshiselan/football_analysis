@@ -1,13 +1,17 @@
 import cv2
 import sys 
+import pandas as pd
+import os
+
 sys.path.append('../')
 from utils import measure_distance ,get_foot_position
 
-class SpeedAndDistance_Estimator():
+class SpeedAndDistance_Estimator:
     def __init__(self):
         self.frame_window=5
         self.frame_rate=24
-    
+
+       
     def add_speed_and_distance_to_tracks(self,tracks):
         total_distance= {}
 
@@ -71,3 +75,41 @@ class SpeedAndDistance_Estimator():
             output_frames.append(frame)
         
         return output_frames
+      
+      # Add this method to the class
+    def export_to_csv(self, tracks, output_folder="output_videos"):
+        """Exports speed and distance data to a CSV file."""
+        all_stats = []
+        
+        for object_name, object_tracks in tracks.items():
+            if object_name == "ball" or object_name == "referees":
+                continue
+            
+            for frame_num in range(len(object_tracks)):
+                # Iterate through each tracked player in this frame
+                for track_id, track_info in object_tracks[frame_num].items():
+                    # Only export if speed and distance data exists
+                    if 'speed' in track_info and 'distance' in track_info:
+                        player_stats = {
+                            'object_type': object_name,  # e.g., "players"
+                            'track_id': track_id,
+                            'frame_num': frame_num,
+                            'speed_kmh': track_info.get('speed', 0),
+                            'total_distance_m': track_info.get('distance', 0)
+                        }
+                        all_stats.append(player_stats)
+    
+        if not all_stats:
+            print("No player speed and distance data to export.")
+            return None
+    
+        df = pd.DataFrame(all_stats)
+        
+        # Ensure the output directory exists
+        os.makedirs(output_folder, exist_ok=True)
+    
+        csv_output_path = os.path.join(output_folder, 'speed_distance_stats.csv')
+        df.to_csv(csv_output_path, index=False)
+        print(f"Speed and distance data exported to {csv_output_path}")
+    
+        return csv_output_path
