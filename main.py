@@ -11,10 +11,10 @@ from speed_and_distance_estimator import SpeedAndDistance_Estimator
 
 def main():
     # Read Video
-    video_frames = read_video('input_videos/08fd33_4.mp4')
+    video_frames = read_video('/content/drive/MyDrive/Computer Vision/input_videos/08fd33_4.mp4')
 
     # Initialize Tracker
-    tracker = Tracker('models/best.pt')
+    tracker = Tracker('/content/drive/MyDrive/Computer Vision/models/best.pt')
 
     tracks = tracker.get_object_tracks(video_frames,
                                        read_from_stub=True,
