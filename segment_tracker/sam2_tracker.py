@@ -1,4 +1,7 @@
 # segment_tracker/sam2_tracker.py
+
+# segment_tracker/sam2_tracker.py
+
 import numpy as np
 import cv2
 from sam2.sam2_video_predictor import SAM2VideoPredictor
@@ -13,16 +16,16 @@ class SAM2Tracker:
         )
         self.state = None
 
-    def initialize(self, frames, detections):
+    def initialize(self, video_path, detections):
         """
-        frames: full video frames (list of np.array)
+        video_path: path to MP4 video
         detections: list of (track_id, bbox) from FIRST frame
         """
 
-        # 🔑 INIT VIDEO STATE (this replaces reset)
-        self.state = self.predictor.init_state(frames)
+        # ✅ SAM2 expects a VIDEO PATH
+        self.state = self.predictor.init_state(video_path)
 
-        # Add players as objects
+        # Add detected players
         for track_id, bbox in detections:
             self.predictor.add_object(
                 self.state,
@@ -31,14 +34,13 @@ class SAM2Tracker:
                 frame_idx=0
             )
 
-    def track(self, frames):
+    def track(self):
         tracks = {
             "players": [],
             "referees": [],
             "ball": []
         }
 
-        # Track forward through video
         for frame_idx, obj_ids, masks in self.predictor.propagate_in_video(self.state):
 
             players_frame = {}
