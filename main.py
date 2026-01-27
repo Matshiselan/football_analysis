@@ -10,6 +10,7 @@ from player_ball_assigner import PlayerBallAssigner
 from camera_movement_estimator import CameraMovementEstimator
 from view_transformer import ViewTransformer
 from speed_and_distance_estimator import SpeedAndDistance_Estimator
+from segment_tracker.initial_detection import detect_players_first_frame
 
 
 def main():
@@ -31,15 +32,39 @@ def main():
     # ----------------------------
     # TRACKING
     # ----------------------------
-    tracker = Tracker(weights_path)
+    # Byte tracker implementation
+    # tracker = Tracker(weights_path)
 
-    tracks = tracker.get_object_tracks(
-        video_frames,
-        read_from_stub=True,
-        stub_path='stubs/track_stubs.pkl'
+    # tracks = tracker.get_object_tracks(
+    #     video_frames,
+    #     read_from_stub=True,
+    #     stub_path='stubs/track_stubs.pkl'
+    # )
+
+    # tracker.add_position_to_tracks(tracks)
+
+    # SAM2 tracker implementation
+    from segment_tracker.sam2_tracker import SAM2Tracker
+    from segment_tracker.initial_detection import detect_players_first_frame
+    from trackers import Tracker  # utilities only
+    
+    # Detect players ONCE (frame 0)
+    detections = detect_players_first_frame(
+        video_frames[0],
+        model_path=weights_path
     )
-
+    
+    # Initialize SAM2
+    sam_tracker = SAM2Tracker("sam2_hiera_large.pt")
+    sam_tracker.initialize(video_frames[0], detections)
+    
+    # Track across video
+    tracks = sam_tracker.track(video_frames)
+    
+    # Reuse your Tracker ONLY for helper functions
+    tracker = Tracker(model_path=None)
     tracker.add_position_to_tracks(tracks)
+
 
     # ----------------------------
     # CAMERA MOVEMENT
