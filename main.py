@@ -56,8 +56,9 @@ def main():
 
     # Initialize SAM2
     sam_tracker = SAM2Tracker("facebook/sam2-hiera-large")
-    sam_tracker.initialize(video_frames, detections)
-    tracks = sam_tracker.track(video_frames)
+    sam_tracker.initialize(video_path, detections)
+    tracks = sam_tracker.track()
+
 
 
     # Reuse your Tracker ONLY for helper functions
