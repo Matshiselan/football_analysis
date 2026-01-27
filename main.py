@@ -47,20 +47,20 @@ def main():
     from segment_tracker.sam2_tracker import SAM2Tracker
     from segment_tracker.initial_detection import detect_players_first_frame
     from trackers import Tracker  # utilities only
-    
+
     # Detect players ONCE (frame 0)
     detections = detect_players_first_frame(
         video_frames[0],
         model_path=weights_path
     )
-    
+
     # Initialize SAM2
-    sam_tracker = SAM2Tracker("sam2_hiera_large.pt")
+    sam_tracker = SAM2Tracker("facebook/sam2-hiera-large")
     sam_tracker.initialize(video_frames[0], detections)
-    
+
     # Track across video
     tracks = sam_tracker.track(video_frames)
-    
+
     # Reuse your Tracker ONLY for helper functions
     tracker = Tracker(model_path=None)
     tracker.add_position_to_tracks(tracks)
