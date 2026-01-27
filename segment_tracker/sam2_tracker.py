@@ -39,13 +39,17 @@ class SAM2Tracker:
             players_frame = {}
 
             for obj_id, mask in masks.items():
-                # TODO: Implement get_bbox_from_mask or assign bbox appropriately
-                bbox = None
+                mask = clean_mask(mask)
+                bbox = get_bbox_from_mask(mask)
 
+                if bbox is None:
+                    continue
+                
                 players_frame[obj_id] = {
                     "bbox": bbox,
                     "mask": mask
                 }
+
 
             tracks["players"].append(players_frame)
             tracks["referees"].append({})
