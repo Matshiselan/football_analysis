@@ -11,10 +11,15 @@ sys.path.append('../')
 from utils import get_center_of_bbox, get_bbox_width, get_foot_position
 
 
+from .botsort import BoTSORT
+
 class Tracker:
-    def __init__(self, model_path):
+    def __init__(self, model_path, tracker_type="bytetrack"):
         self.model = YOLO(model_path)
-        self.tracker = sv.ByteTrack()
+        if tracker_type == "botsort":
+            self.tracker = BoTSORT()
+        else:
+            self.tracker = sv.ByteTrack()
 
     # -----------------------------------------------------------
     # POSITION ASSIGNMENT
@@ -81,8 +86,22 @@ class Tracker:
                 if cls_names[cls_id] == "goalkeeper":
                     detection_sup.class_id[i] = cls_inv["player"]
 
+
             # tracking
-            tracked = self.tracker.update_with_detections(detection_sup)
+            if hasattr(self.tracker, "update_with_detections"):
+                tracked = self.tracker.update_with_detections(detection_sup)
+            else:
+                # Convert detection_sup to numpy array for BoT-SORT
+                # Example: [[x1, y1, x2, y2, score, class_id], ...]
+                dets = []
+                for i, bbox in enumerate(detection_sup.xyxy):
+                    score = detection_sup.confidence[i] if hasattr(detection_sup, 'confidence') else 1.0
+                    class_id = detection_sup.class_id[i]
+                    dets.append([
+                        bbox[0], bbox[1], bbox[2], bbox[3], score, class_id
+                    ])
+                dets = np.array(dets)
+                tracked = self.tracker.update(dets)
 
             tracks["players"].append({})
             tracks["referees"].append({})
