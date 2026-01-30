@@ -1,0 +1,29 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run main.py with BoT-SORT",
+			"type": "shell",
+			"command": "python",
+			"args": [
+				"main.py"
+			],
+			"problemMatcher": [
+				"$python"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run main.py with BoT-SORT (fixed import)",
+			"type": "shell",
+			"command": "python",
+			"args": [
+				"main.py"
+			],
+			"problemMatcher": [
+				"$python"
+			],
+			"group": "build"
+		}
+	]
+}

@@ -17,6 +17,8 @@ def main():
     # ----------------------------
     # INPUTS
     # ----------------------------
+    # video_path = 'input_videos/08fd33_4.mp4'
+    # weights_path = 'models/best.pt'
     video_path = '/content/drive/MyDrive/Computer Vision/input_videos/08fd33_4.mp4'
     weights_path = '/content/drive/MyDrive/Computer Vision/models/best.pt'
 
@@ -31,7 +33,8 @@ def main():
     # ----------------------------
     # TRACKING
     # ----------------------------
-    tracker = Tracker(weights_path)
+    # To use BoT-SORT, set tracker_type="botsort". For ByteTrack, use "bytetrack" or omit.
+    tracker = Tracker(weights_path, tracker_type="botsort")
 
     tracks = tracker.get_object_tracks(
         video_frames,
