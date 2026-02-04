@@ -14,12 +14,14 @@ from utils import get_center_of_bbox, get_bbox_width, get_foot_position
 from .botsort import BoTSORT
 
 class Tracker:
-    def __init__(self, model_path, tracker_type="bytetrack"):
+    def __init__(self, model_path, tracker_type="bytetrack", track_buffer=30, match_thresh=0.8):
         self.model = YOLO(model_path)
+        self.track_buffer = track_buffer
+        self.match_thresh = match_thresh
         if tracker_type == "botsort":
-            self.tracker = BoTSORT()
+            self.tracker = BoTSORT(track_buffer=track_buffer, match_thresh=match_thresh)
         else:
-            self.tracker = sv.ByteTrack()
+            self.tracker = sv.ByteTrack(track_buffer=track_buffer, match_thresh=match_thresh)
 
     # -----------------------------------------------------------
     # POSITION ASSIGNMENT

@@ -33,8 +33,17 @@ def main():
     # ----------------------------
     # TRACKING
     # ----------------------------
-    # To use BoT-SORT, set tracker_type="botsort". For ByteTrack, use "bytetrack" or omit.
-    tracker = Tracker(weights_path, tracker_type="botsort")
+
+    # Use BoT-SORT with ReID enabled by passing a custom botsort.yaml config
+    # Create a custom botsort.yaml if not already present, with 'with_reid: True'
+    botsort_yaml = "models/botsort_reid.yaml"
+    # Example botsort_reid.yaml content:
+    # tracker_type: botsort
+    # with_reid: True
+    # model: auto
+    # (other parameters can be set as needed)
+
+    tracker = Tracker(weights_path, tracker_type="botsort", tracker_config=botsort_yaml)
 
     tracks = tracker.get_object_tracks(
         video_frames,
