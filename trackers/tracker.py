@@ -62,13 +62,19 @@ class Tracker:
     # -----------------------------------------------------------
     # BUILD TRACK DICTIONARY
     # -----------------------------------------------------------
-    def get_object_tracks(self, frames, read_from_stub=False, stub_path=None):
+    def get_object_tracks(self, frames, read_from_stub=False, stub_path=None, tracker_yaml=None):
         # load stub
         if read_from_stub and stub_path and os.path.exists(stub_path):
             with open(stub_path, 'rb') as f:
                 return pickle.load(f)
 
-        detections = self.detect_frames(frames)
+        # Use Ultralytics YOLO's built-in tracking with custom tracker config if provided
+        if tracker_yaml is not None:
+            results = self.model.track(frames, tracker=tracker_yaml, persist=True)
+            # results is a list of Results objects, one per frame
+            detections = [r for r in results]
+        else:
+            detections = self.detect_frames(frames)
 
         tracks = {
             "players": [],
