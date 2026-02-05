@@ -43,13 +43,15 @@ def main():
     # model: auto
     # (other parameters can be set as needed)
 
-    tracker = Tracker(weights_path, tracker_type="botsort", tracker_config=botsort_yaml)
+    tracker = Tracker(weights_path, tracker_type="botsort")
 
     tracks = tracker.get_object_tracks(
         video_frames,
         read_from_stub=True,
-        stub_path='stubs/track_stubs.pkl'
+        stub_path='stubs/track_stubs.pkl',
+        tracker_yaml=botsort_yaml
     )
+
 
     tracker.add_position_to_tracks(tracks)
 
