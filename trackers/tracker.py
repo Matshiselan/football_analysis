@@ -14,14 +14,45 @@ from utils import get_center_of_bbox, get_bbox_width, get_foot_position
 from .botsort import BoTSORT
 
 class Tracker:
-    def __init__(self, model_path, tracker_type="bytetrack", track_buffer=30, match_thresh=0.8):
+    def __init__(self, model_path, tracker_type="bytetrack", track_buffer=30, match_thresh=0.8, tracked_player_id=1):
         self.model = YOLO(model_path)
         self.track_buffer = track_buffer
         self.match_thresh = match_thresh
+        self.tracked_player_id = tracked_player_id
         if tracker_type == "botsort":
             self.tracker = BoTSORT(track_buffer=track_buffer, match_thresh=match_thresh)
         else:
-            self.tracker = sv.ByteTrack(track_buffer=track_buffer, match_thresh=match_thresh)
+            self.tracker = sv.ByteTrack()
+
+    def set_tracked_player_id(self, player_id):
+        self.tracked_player_id = player_id
+
+    # -----------------------------------------------------------
+    # TRACK SPECIFIC PLAYER ID
+    # -----------------------------------------------------------
+    def track_single_player(self, video_frames, tracks, highlight_color=(0,255,0)):
+        out_frames = []
+        for fnum, frame in enumerate(video_frames):
+            frame = frame.copy()
+            players = tracks["players"][fnum]
+            for tid, info in players.items():
+                color = highlight_color if tid == self.tracked_player_id else info.get("team_color", (0, 0, 255))
+                frame = self.draw_ellipse(frame, info["bbox"], color, tid)
+                if tid == self.tracked_player_id:
+                    cv2.putText(frame, "FOLLOWING", (int(info["bbox"][0]), int(info["bbox"][1])-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, highlight_color, 2)
+            out_frames.append(frame)
+        return out_frames
+
+    # -----------------------------------------------------------
+    # OUTPUT IMAGE WITH PLAYER IDs
+    # -----------------------------------------------------------
+    def save_players_image(self, frame, players, output_path="players_with_ids.jpg"):
+        frame_out = frame.copy()
+        for tid, info in players.items():
+            bbox = info["bbox"]
+            frame_out = self.draw_ellipse(frame_out, bbox, info.get("team_color", (0, 0, 255)), tid)
+        cv2.imwrite(output_path, frame_out)
+        print(f"Saved image with player IDs to {output_path}")
 
     # -----------------------------------------------------------
     # POSITION ASSIGNMENT
