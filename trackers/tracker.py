@@ -285,14 +285,18 @@ class Tracker:
             refs = tracks["referees"][fnum]
             ball = tracks["ball"][fnum]
 
-            # players
-            for tid, info in players.items():
+            # Only draw the tracked player
+            tracked_id = self.tracked_player_id
+            if tracked_id in players:
+                info = players[tracked_id]
                 frame = self.draw_ellipse(frame,
                                           info["bbox"],
                                           info.get("team_color", (0, 0, 255)),
-                                          tid)
+                                          tracked_id)
                 if info.get("has_ball", False):
                     frame = self.draw_triangle(frame, info["bbox"], (0, 0, 255))
+                # Optionally, add a label to indicate tracking
+                cv2.putText(frame, "FOLLOWING", (int(info["bbox"][0]), int(info["bbox"][1])-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
 
             # referees
             for _, info in refs.items():
