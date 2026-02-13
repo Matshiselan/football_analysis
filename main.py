@@ -17,10 +17,10 @@ def main():
     # ----------------------------
     # INPUTS
     # ----------------------------
-    # video_path = 'input_videos/08fd33_4.mp4'
-    # weights_path = 'models/best.pt'
-    video_path = '/content/drive/MyDrive/Computer Vision/input_videos/08fd33_4.mp4'
-    weights_path = '/content/drive/MyDrive/Computer Vision/models/best.pt'
+    video_path = 'input_videos/08fd33_4.mp4'
+    weights_path = 'models/best.pt'
+    # video_path = '/content/drive/MyDrive/Computer Vision/input_videos/08fd33_4.mp4'
+    # weights_path = '/content/drive/MyDrive/Computer Vision/models/best.pt'
 
     output_dir = "output_videos"
     os.makedirs(output_dir, exist_ok=True)
@@ -53,7 +53,13 @@ def main():
     )
 
 
+
     tracker.add_position_to_tracks(tracks)
+
+    # Filter to only keep the tracked player (e.g., ID=1) for the rest of the pipeline
+    tracked_id = tracker.tracked_player_id
+    for frame_num, player_track in enumerate(tracks["players"]):
+        tracks["players"][frame_num] = {tid: info for tid, info in player_track.items() if tid == tracked_id}
 
     # ----------------------------
     # CAMERA MOVEMENT
@@ -95,7 +101,7 @@ def main():
     )
 
     speed_and_distance_estimator.export_summary_csv(
-        tracks, output_folder=output_dir
+        tracks, output_folder=output_dir, tracked_player_id=tracker.tracked_player_id
     )
 
     print("CSV files saved inside:", output_dir)

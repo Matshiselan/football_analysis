@@ -153,7 +153,7 @@ class SpeedAndDistance_Estimator:
     # ---------------------------------------------------------------------
     # 4. EXPORT FINAL SUMMARY (ONE ROW PER PLAYER)
     # ---------------------------------------------------------------------
-    def export_summary_csv(self, tracks, output_folder="output_videos"):
+    def export_summary_csv(self, tracks, output_folder="output_videos", tracked_player_id=None):
         """
         Exports summary statistics for each tracked player:
             - final cumulative distance
@@ -171,10 +171,10 @@ class SpeedAndDistance_Estimator:
 
             for f in range(num_frames):
                 for track_id, info in object_tracks[f].items():
-
+                    if tracked_player_id is not None and track_id != tracked_player_id:
+                        continue
                     if "distance" not in info:
                         continue
-
                     if track_id not in summary:
                         summary[track_id] = {
                             "object_type": object_name,
@@ -182,10 +182,8 @@ class SpeedAndDistance_Estimator:
                             "final_distance": 0,
                             "speed_values": []
                         }
-
                     # update cumulative distance
                     summary[track_id]["final_distance"] = info["distance"]
-
                     # store speed history
                     if "speed" in info:
                         summary[track_id]["speed_values"].append(info["speed"])
@@ -194,7 +192,6 @@ class SpeedAndDistance_Estimator:
         rows = []
         for track_id, s in summary.items():
             speeds = s["speed_values"]
-
             rows.append({
                 "object_type": s["object_type"],
                 "track_id": track_id,
