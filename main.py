@@ -17,10 +17,10 @@ def main():
     # ----------------------------
     # INPUTS
     # ----------------------------
-    video_path = 'input_videos/08fd33_4.mp4'
-    weights_path = 'models/best.pt'
-    # video_path = '/content/drive/MyDrive/Computer Vision/input_videos/08fd33_4.mp4'
-    # weights_path = '/content/drive/MyDrive/Computer Vision/models/best.pt'
+    # video_path = 'input_videos/08fd33_4.mp4'
+    # weights_path = 'models/best.pt'
+    video_path = '/content/drive/MyDrive/Computer Vision/input_videos/08fd33_4.mp4'
+    weights_path = '/content/drive/MyDrive/Computer Vision/models/best.pt'
 
     output_dir = "output_videos"
     os.makedirs(output_dir, exist_ok=True)
