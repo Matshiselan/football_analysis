@@ -94,6 +94,9 @@ class Tracker:
     # BUILD TRACK DICTIONARY
     # -----------------------------------------------------------
     def get_object_tracks(self, frames, read_from_stub=False, stub_path=None, tracker_yaml=None):
+        # Import TeamAssigner here to avoid circular import
+        from team_assigner import TeamAssigner
+        team_assigner = TeamAssigner()
         # load stub
         if read_from_stub and stub_path and os.path.exists(stub_path):
             with open(stub_path, 'rb') as f:
@@ -113,8 +116,8 @@ class Tracker:
             "ball": []
         }
 
-        for frame_num, det in enumerate(detections):
 
+        for frame_num, det in enumerate(detections):
             # convert YOLO detection → Supervision object
             detection_sup = sv.Detections.from_ultralytics(det)
             cls_names = det.names
@@ -125,21 +128,39 @@ class Tracker:
                 if cls_names[cls_id] == "goalkeeper":
                     detection_sup.class_id[i] = cls_inv["player"]
 
+            # Extract jersey color for each detection
+            frame = frames[frame_num]
+            detection_colors = []
+            for i, bbox in enumerate(detection_sup.xyxy):
+                # Only extract color for players
+                class_id = detection_sup.class_id[i]
+                if cls_names[class_id] == "player":
+                    color = team_assigner.get_player_color(frame, bbox)
+                else:
+                    color = None
+                detection_colors.append(color)
 
             # tracking
             if hasattr(self.tracker, "update_with_detections"):
                 tracked = self.tracker.update_with_detections(detection_sup)
             else:
                 # Convert detection_sup to numpy array for BoT-SORT
-                # Example: [[x1, y1, x2, y2, score, class_id], ...]
+                # Example: [[x1, y1, x2, y2, score, class_id, color0, color1, color2], ...]
                 dets = []
                 for i, bbox in enumerate(detection_sup.xyxy):
                     score = detection_sup.confidence[i] if hasattr(detection_sup, 'confidence') else 1.0
                     class_id = detection_sup.class_id[i]
-                    dets.append([
-                        bbox[0], bbox[1], bbox[2], bbox[3], score, class_id
-                    ])
-                dets = np.array(dets)
+                    color = detection_colors[i]
+                    # If color is not None, append as 3 extra values
+                    if color is not None:
+                        dets.append([
+                            bbox[0], bbox[1], bbox[2], bbox[3], score, class_id, color[0], color[1], color[2]
+                        ])
+                    else:
+                        dets.append([
+                            bbox[0], bbox[1], bbox[2], bbox[3], score, class_id, None, None, None
+                        ])
+                dets = np.array(dets, dtype=object)
                 tracked = self.tracker.update(dets)
 
             tracks["players"].append({})
@@ -147,13 +168,16 @@ class Tracker:
             tracks["ball"].append({})
 
             # tracked players & referees
+
             for tr in tracked:
                 bbox = tr[0].tolist()
-                cls_id = tr[3]
-                track_id = tr[4]
+                track_id = tr[1]
+                embedding = tr[2] if len(tr) > 2 else None
+                cls_id = tr[3] if len(tr) > 3 else None
+                color = tr[4] if len(tr) > 4 else None
 
                 if cls_id == cls_inv['player']:
-                    tracks["players"][frame_num][track_id] = {"bbox": bbox}
+                    tracks["players"][frame_num][track_id] = {"bbox": bbox, "embedding": embedding, "jersey_color": color}
 
                 if cls_id == cls_inv['referee']:
                     tracks["referees"][frame_num][track_id] = {"bbox": bbox}

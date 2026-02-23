@@ -39,34 +39,44 @@ class TeamAssigner:
         return player_color
 
 
-    def assign_team_color(self,frame, player_detections):
-        
+    def assign_team_color(self, frame, player_detections):
         player_colors = []
         for _, player_detection in player_detections.items():
             bbox = player_detection["bbox"]
-            player_color =  self.get_player_color(frame,bbox)
+            player_color = self.get_player_color(frame, bbox)
             player_colors.append(player_color)
-        
-        kmeans = KMeans(n_clusters=2, init="k-means++",n_init=10)
+
+        # Only perform KMeans if there are at least 2 players
+        if len(player_colors) < 2:
+            # Assign a default team color if only one player
+            self.kmeans = None
+            if len(player_colors) == 1:
+                self.team_colors[1] = player_colors[0]
+            return
+
+        kmeans = KMeans(n_clusters=2, init="k-means++", n_init=10)
         kmeans.fit(player_colors)
 
         self.kmeans = kmeans
-
         self.team_colors[1] = kmeans.cluster_centers_[0]
         self.team_colors[2] = kmeans.cluster_centers_[1]
 
 
-    def get_player_team(self,frame,player_bbox,player_id):
+    def get_player_team(self, frame, player_bbox, player_id):
         if player_id in self.player_team_dict:
             return self.player_team_dict[player_id]
 
-        player_color = self.get_player_color(frame,player_bbox)
+        player_color = self.get_player_color(frame, player_bbox)
 
-        team_id = self.kmeans.predict(player_color.reshape(1,-1))[0]
-        team_id+=1
+        # If kmeans was not fitted (only one player), assign default team 1
+        if self.kmeans is None:
+            team_id = 1
+        else:
+            team_id = self.kmeans.predict(player_color.reshape(1, -1))[0]
+            team_id += 1
 
-        if player_id ==91:
-            team_id=1
+        if player_id == 91:
+            team_id = 1
 
         self.player_team_dict[player_id] = team_id
 

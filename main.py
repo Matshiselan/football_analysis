@@ -17,10 +17,10 @@ def main():
     # ----------------------------
     # INPUTS
     # ----------------------------
-    # video_path = 'input_videos/08fd33_4.mp4'
-    # weights_path = 'models/best.pt'
-    video_path = '/content/drive/MyDrive/Computer Vision/input_videos/08fd33_4.mp4'
-    weights_path = '/content/drive/MyDrive/Computer Vision/models/best.pt'
+    video_path = 'input_videos/08fd33_4.mp4'
+    weights_path = 'models/best.pt'
+    # video_path = '/content/drive/MyDrive/Computer Vision/input_videos/08fd33_4.mp4'
+    # weights_path = '/content/drive/MyDrive/Computer Vision/models/best.pt'
 
     output_dir = "output_videos"
     os.makedirs(output_dir, exist_ok=True)
@@ -56,10 +56,107 @@ def main():
 
     tracker.add_position_to_tracks(tracks)
 
-    # Filter to only keep the tracked player (e.g., ID=1) for the rest of the pipeline
+    # Robust tracked player continuity: maintain tracking even if ID changes
     tracked_id = tracker.tracked_player_id
+    prev_embedding = None
+    lost_counter = 0
+    max_lost = 10  # frames to interpolate if lost
+    tracked_log = []  # For debug visualization
+    last_known_bbox = None
     for frame_num, player_track in enumerate(tracks["players"]):
-        tracks["players"][frame_num] = {tid: info for tid, info in player_track.items() if tid == tracked_id}
+        log_entry = {"frame": frame_num, "status": "", "tracked_id": tracked_id}
+        if tracked_id in player_track:
+            tracks["players"][frame_num] = {tracked_id: player_track[tracked_id]}
+            bbox = player_track[tracked_id]["bbox"]
+            last_known_bbox = bbox
+            prev_embedding = player_track[tracked_id].get("embedding")
+            lost_counter = 0
+            log_entry["status"] = "tracked"
+        else:
+            if len(player_track) == 0:
+                tracks["players"][frame_num] = {}
+                log_entry["status"] = "no players"
+                tracked_log.append(log_entry)
+                continue
+            prev_bbox = last_known_bbox
+            best_score = float('inf')
+            best_id = None
+            for pid, info in player_track.items():
+                curr_bbox = info["bbox"]
+                curr_embedding = info.get("embedding")
+                curr_color = info.get("jersey_color")
+                # Print jersey color for debugging
+                print(f"Frame {frame_num}, Player {pid}, Jersey Color: {curr_color}")
+                # Calculate embedding distance if available
+                if prev_embedding is not None and curr_embedding is not None:
+                    emb_dist = np.linalg.norm(np.array(prev_embedding) - np.array(curr_embedding))
+                else:
+                    emb_dist = None
+                # Calculate bbox distance if available
+                if prev_bbox is not None:
+                    prev_center = ((prev_bbox[0]+prev_bbox[2])/2, (prev_bbox[1]+prev_bbox[3])/2)
+                    curr_center = ((curr_bbox[0]+curr_bbox[2])/2, (curr_bbox[1]+curr_bbox[3])/2)
+                    bbox_dist = np.linalg.norm(np.array(prev_center) - np.array(curr_center))
+                else:
+                    bbox_dist = None
+                # Calculate jersey color distance if available
+                prev_color = None
+                if tracked_id in player_track and player_track[tracked_id].get("jersey_color") is not None:
+                    prev_color = player_track[tracked_id]["jersey_color"]
+                elif frame_num > 0 and tracked_id in tracks["players"][frame_num-1] and tracks["players"][frame_num-1][tracked_id].get("jersey_color") is not None:
+                    prev_color = tracks["players"][frame_num-1][tracked_id]["jersey_color"]
+                color_dist = np.linalg.norm(np.array(prev_color) - np.array(curr_color)) if prev_color is not None and curr_color is not None else None
+                # Use color as a hard constraint: only consider matches if color distance is below threshold
+                color_hard_thresh = 40.0  # Lower threshold for stricter color matching
+                if color_dist is not None and color_dist > color_hard_thresh:
+                    continue  # Skip this candidate if color is too different
+                # Combine distances: increase color weight
+                score = float('inf')
+                if emb_dist is not None and bbox_dist is not None and color_dist is not None:
+                    score = 0.3 * emb_dist + 0.2 * (bbox_dist / 100.0) + 0.5 * (color_dist / 100.0)
+                elif emb_dist is not None and color_dist is not None:
+                    score = 0.5 * emb_dist + 0.5 * (color_dist / 100.0)
+                elif emb_dist is not None and bbox_dist is not None:
+                    score = 0.7 * emb_dist + 0.3 * (bbox_dist / 100.0)
+                elif color_dist is not None:
+                    score = color_dist / 100.0
+                elif emb_dist is not None:
+                    score = emb_dist
+                elif bbox_dist is not None:
+                    score = bbox_dist / 100.0
+                if score < best_score:
+                    best_score = score
+                    best_id = pid
+            # Thresholds for lost: tune as needed
+            emb_thresh = 0.6
+            bbox_thresh = 60.0 / 100.0  # 60 pixels, scaled
+            color_thresh = 40.0 / 100.0  # 40 in RGB, scaled (stricter)
+            score_thresh = 0.3 * emb_thresh + 0.2 * bbox_thresh + 0.5 * color_thresh
+            if best_score < score_thresh:
+                tracked_id = best_id
+                tracks["players"][frame_num] = {tracked_id: player_track[tracked_id]}
+                bbox = player_track[tracked_id]["bbox"]
+                last_known_bbox = bbox
+                prev_embedding = player_track[tracked_id].get("embedding")
+                lost_counter = 0
+                log_entry["status"] = "recovered"
+            else:
+                # Mark as lost, interpolate bbox if possible
+                lost_counter += 1
+                if last_known_bbox is not None and lost_counter <= max_lost:
+                    # Interpolate: keep last known bbox
+                    tracks["players"][frame_num] = {tracked_id: {"bbox": last_known_bbox}}
+                    log_entry["status"] = f"lost({lost_counter})"
+                else:
+                    tracks["players"][frame_num] = {}
+                    log_entry["status"] = "lost(terminated)"
+        tracked_log.append(log_entry)
+    # Save debug log to CSV
+    import csv
+    with open(os.path.join(output_dir, "tracking_debug_log.csv"), "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["frame", "status", "tracked_id"])
+        writer.writeheader()
+        writer.writerows(tracked_log)
 
     # ----------------------------
     # CAMERA MOVEMENT
