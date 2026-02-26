@@ -24,6 +24,8 @@ def main():
 
     output_dir = "output_videos"
     os.makedirs(output_dir, exist_ok=True)
+    player_crops_dir = os.path.join(output_dir, "player_crops")
+    os.makedirs(player_crops_dir, exist_ok=True)
 
     # ----------------------------
     # READ VIDEO
@@ -63,8 +65,10 @@ def main():
     max_lost = 10  # frames to interpolate if lost
     tracked_log = []  # For debug visualization
     last_known_bbox = None
+    embedding_log = []
     for frame_num, player_track in enumerate(tracks["players"]):
         log_entry = {"frame": frame_num, "status": "", "tracked_id": tracked_id}
+        print(f"Frame {frame_num}: player_track keys: {list(player_track.keys())}")
         if tracked_id in player_track:
             tracks["players"][frame_num] = {tracked_id: player_track[tracked_id]}
             bbox = player_track[tracked_id]["bbox"]
@@ -85,13 +89,36 @@ def main():
                 curr_bbox = info["bbox"]
                 curr_embedding = info.get("embedding")
                 curr_color = info.get("jersey_color")
+                print(f"  Candidate {pid}: embedding present: {curr_embedding is not None}, embedding: {curr_embedding}")
                 # Print jersey color for debugging
                 print(f"Frame {frame_num}, Player {pid}, Jersey Color: {curr_color}")
+                # Save cropped player image with extracted color
+                if curr_color is not None and curr_bbox is not None:
+                    x1, y1, x2, y2 = map(int, curr_bbox)
+                    crop = video_frames[frame_num][y1:y2, x1:x2]
+                    # Draw a rectangle filled with the extracted color
+                    color_patch = np.zeros((30, 30, 3), dtype=np.uint8)
+                    color_patch[:] = np.array(curr_color, dtype=np.uint8)
+                    # Concatenate crop and color patch horizontally
+                    if crop.size > 0:
+                        vis = np.concatenate([crop, color_patch], axis=1)
+                        out_path = os.path.join(player_crops_dir, f"player_crop_frame{frame_num}_id{pid}.jpg")
+                        cv2.imwrite(out_path, vis)
                 # Calculate embedding distance if available
+                print(f"Frame {frame_num}, Player {pid}, prev_embedding: {prev_embedding is not None}, curr_embedding: {curr_embedding is not None}")
                 if prev_embedding is not None and curr_embedding is not None:
                     emb_dist = np.linalg.norm(np.array(prev_embedding) - np.array(curr_embedding))
                 else:
                     emb_dist = None
+                print(f"Frame {frame_num}, tracked_id: {tracked_id}, candidate_id: {pid}, emb_dist: {emb_dist}")
+                # Log embedding distance for analysis
+                embedding_log.append({
+                    "frame": frame_num,
+                    "tracked_id": tracked_id,
+                    "candidate_id": pid,
+                    "emb_dist": emb_dist,
+                    "is_true": int(pid == tracked_id)
+                })
                 # Calculate bbox distance if available
                 if prev_bbox is not None:
                     prev_center = ((prev_bbox[0]+prev_bbox[2])/2, (prev_bbox[1]+prev_bbox[3])/2)
@@ -107,17 +134,17 @@ def main():
                     prev_color = tracks["players"][frame_num-1][tracked_id]["jersey_color"]
                 color_dist = np.linalg.norm(np.array(prev_color) - np.array(curr_color)) if prev_color is not None and curr_color is not None else None
                 # Use color as a hard constraint: only consider matches if color distance is below threshold
-                color_hard_thresh = 40.0  # Lower threshold for stricter color matching
+                color_hard_thresh = 1000.0  # Relaxed for debugging: log all candidates
                 if color_dist is not None and color_dist > color_hard_thresh:
                     continue  # Skip this candidate if color is too different
                 # Combine distances: increase color weight
                 score = float('inf')
                 if emb_dist is not None and bbox_dist is not None and color_dist is not None:
-                    score = 0.3 * emb_dist + 0.2 * (bbox_dist / 100.0) + 0.5 * (color_dist / 100.0)
+                    score = 0.7 * emb_dist + 0.1 * (bbox_dist / 100.0) + 0.2 * (color_dist / 100.0)
                 elif emb_dist is not None and color_dist is not None:
-                    score = 0.5 * emb_dist + 0.5 * (color_dist / 100.0)
+                    score = 0.8 * emb_dist + 0.2 * (color_dist / 100.0)
                 elif emb_dist is not None and bbox_dist is not None:
-                    score = 0.7 * emb_dist + 0.3 * (bbox_dist / 100.0)
+                    score = 0.8 * emb_dist + 0.2 * (bbox_dist / 100.0)
                 elif color_dist is not None:
                     score = color_dist / 100.0
                 elif emb_dist is not None:
@@ -130,8 +157,8 @@ def main():
             # Thresholds for lost: tune as needed
             emb_thresh = 0.6
             bbox_thresh = 60.0 / 100.0  # 60 pixels, scaled
-            color_thresh = 40.0 / 100.0  # 40 in RGB, scaled (stricter)
-            score_thresh = 0.3 * emb_thresh + 0.2 * bbox_thresh + 0.5 * color_thresh
+            color_thresh = 20.0 / 100.0  # 20 in RGB, scaled (very strict)
+            score_thresh = 0.7 * emb_thresh + 0.1 * bbox_thresh + 0.2 * color_thresh
             if best_score < score_thresh:
                 tracked_id = best_id
                 tracks["players"][frame_num] = {tracked_id: player_track[tracked_id]}
@@ -157,6 +184,12 @@ def main():
         writer = csv.DictWriter(f, fieldnames=["frame", "status", "tracked_id"])
         writer.writeheader()
         writer.writerows(tracked_log)
+
+    # Save embedding distances log to CSV
+    with open(os.path.join(output_dir, "embedding_distances_log.csv"), "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["frame", "tracked_id", "candidate_id", "emb_dist", "is_true"])
+        writer.writeheader()
+        writer.writerows(embedding_log)
 
     # ----------------------------
     # CAMERA MOVEMENT
@@ -220,6 +253,30 @@ def main():
             )
             track["team"] = team
             track["team_color"] = team_assigner.team_colors[team]
+
+    # Goalkeeper team assignment
+    try:
+        from team_assigner.team_assigner import resolve_goalkeepers_team_id
+        import supervision as sv
+        for frame_num in range(len(tracks['players'])):
+            # Find goalkeepers in this frame
+            if 'goalkeepers' in tracks and len(tracks['goalkeepers']) > frame_num:
+                goalkeepers_track = tracks['goalkeepers'][frame_num]
+                players_track = tracks['players'][frame_num]
+                # Convert to sv.Detections
+                if len(goalkeepers_track) > 0 and len(players_track) > 0:
+                    # Build sv.Detections objects
+                    goalkeepers_xyxy = np.array([v['bbox'] for v in goalkeepers_track.values()])
+                    players_xyxy = np.array([v['bbox'] for v in players_track.values()])
+                    goalkeepers_class_id = np.array([0]*len(goalkeepers_track))  # placeholder
+                    players_class_id = np.array([v['team']-1 for v in players_track.values()])
+                    goalkeepers_det = sv.Detections(xyxy=goalkeepers_xyxy, class_id=goalkeepers_class_id)
+                    players_det = sv.Detections(xyxy=players_xyxy, class_id=players_class_id)
+                    team_ids = resolve_goalkeepers_team_id(players_det, goalkeepers_det)
+                    for idx, (goalkeeper_id, track) in enumerate(goalkeepers_track.items()):
+                        track['team'] = int(team_ids[idx]) + 1
+    except Exception as e:
+        print(f"Goalkeeper team assignment failed: {e}")
 
     # ----------------------------
     # BALL OWNERSHIP
