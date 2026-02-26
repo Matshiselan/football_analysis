@@ -175,6 +175,8 @@ class Tracker:
                 embedding = tr[2] if len(tr) > 2 else None
                 cls_id = tr[3] if len(tr) > 3 else None
                 color = tr[4] if len(tr) > 4 else None
+                print(f"Frame {frame_num}, Track {track_id}: embedding type: {type(embedding)}, embedding shape: {getattr(embedding, 'shape', None)}, embedding: {embedding}")
+                print(f"  tr: {tr}")
 
                 if cls_id == cls_inv['player']:
                     tracks["players"][frame_num][track_id] = {"bbox": bbox, "embedding": embedding, "jersey_color": color}
