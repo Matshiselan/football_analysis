@@ -10,6 +10,7 @@ from player_ball_assigner import PlayerBallAssigner
 from camera_movement_estimator import CameraMovementEstimator
 from view_transformer import ViewTransformer
 from speed_and_distance_estimator import SpeedAndDistance_Estimator
+from TeamClassifier import TeamClassifier
 
 
 def main():
@@ -313,6 +314,29 @@ def main():
 
     print(f"\n🎉 Video saved to: {output_video_path}")
     print("🚀 Processing complete!")
+
+
+    # After player crops are saved, collect crops for team classification
+    import glob
+    crop_paths = glob.glob(os.path.join(player_crops_dir, "*.jpg"))
+    crops = [cv2.imread(p) for p in crop_paths if cv2.imread(p) is not None]
+    if crops:
+        print(f"Loaded {len(crops)} player crops for team classification.")
+        team_classifier = TeamClassifier(device='cpu', batch_size=8)
+        team_classifier.fit(crops)
+        team_labels = team_classifier.predict(crops)
+        print("Predicted team labels:", team_labels)
+        # Save a PNG visualizing team assignments
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(10,2))
+        plt.imshow([team_labels], aspect='auto', cmap='tab10')
+        plt.title('Team Assignments')
+        plt.xlabel('Player Crop Index')
+        plt.yticks([])
+        plt.savefig(os.path.join(output_dir, 'team_assignments.png'))
+        print(f"Team assignments PNG saved to {os.path.join(output_dir, 'team_assignments.png')}")
+    else:
+        print("No player crops found for team classification.")
 
 
 if __name__ == "__main__":
